@@ -2,6 +2,7 @@ import streamlit as st
 
 from frontend.components import (
     render_chat_interface,
+    render_automated_eda,
     render_dataset_insights,
     render_dataset_preview,
     render_header,
@@ -32,6 +33,7 @@ def main() -> None:
         upload_result = render_upload_panel()
         dataframe = upload_result[0] if upload_result else None
         profile = upload_result[1] if upload_result else None
+        eda_report = upload_result[2] if upload_result else None
         st.write("")
         render_suggested_questions(dataframe)
 
@@ -41,6 +43,8 @@ def main() -> None:
         render_dataset_preview(dataframe)
         st.write("")
         render_dataset_insights(profile)
+        st.write("")
+        render_automated_eda(dataframe, eda_report)
 
 
 if __name__ == "__main__":
