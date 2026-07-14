@@ -4,9 +4,11 @@ from backend.app.interfaces.api.v1.routes.analysis import router as analysis_rou
 from backend.app.interfaces.api.v1.routes.chat import router as chat_router
 from backend.app.interfaces.api.v1.routes.health import router as health_router
 from backend.app.interfaces.api.v1.routes.planner import router as planner_router
+from backend.app.interfaces.api.v1.routes.visualization import router as visualization_router
 
 api_router = APIRouter()
 api_router.include_router(analysis_router, tags=["analysis"])
 api_router.include_router(chat_router, tags=["chat"])
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(planner_router, tags=["planner"])
+api_router.include_router(visualization_router, tags=["visualization"])
