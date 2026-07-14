@@ -5,14 +5,6 @@ from uuid import uuid4
 import streamlit as st
 
 
-DEFAULT_SUGGESTIONS = [
-    "Summarize this dataset",
-    "Which columns have missing values?",
-    "What trends stand out?",
-    "Suggest useful visualizations",
-]
-
-
 def initialize_session_state() -> None:
     st.session_state.setdefault("conversation_id", f"streamlit-{uuid4()}")
     st.session_state.setdefault("messages", [])

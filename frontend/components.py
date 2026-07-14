@@ -18,7 +18,8 @@ from frontend.eda import (
 )
 from frontend.gemini_client import request_gemini_response
 from frontend.gemini_client import load_chat_history, reset_chat_history
-from frontend.state import DEFAULT_SUGGESTIONS, add_chat_exchange, consume_queued_question, queue_question
+from frontend.state import add_chat_exchange, consume_queued_question, queue_question
+from frontend.suggestions import generate_suggested_questions
 
 
 def render_sidebar() -> None:
@@ -252,16 +253,7 @@ def render_suggested_questions(dataframe: pd.DataFrame | None) -> None:
 
 
 def build_suggestions(dataframe: pd.DataFrame | None) -> list[str]:
-    if dataframe is None or dataframe.empty:
-        return DEFAULT_SUGGESTIONS
-
-    first_columns = ", ".join(str(column) for column in dataframe.columns[:3])
-    return [
-        "Summarize this dataset",
-        "Which columns have missing values?",
-        f"What patterns appear in {first_columns}?",
-        "Suggest the best charts for this data",
-    ]
+    return generate_suggested_questions(dataframe)
 
 
 def render_chat_interface(
