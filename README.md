@@ -108,3 +108,15 @@ Services:
 - Put API-specific models and routes in `backend/app/interfaces`.
 - Put provider/database implementations in `backend/app/infrastructure`.
 - Use environment variables for all runtime configuration.
+
+## Gemini Configuration
+
+Set `GEMINI_API_KEY` in `.env` to enable AI chat responses through the backend Gemini service.
+
+```bash
+GEMINI_API_KEY=your-api-key
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_TIMEOUT_SECONDS=30
+GEMINI_MAX_RETRIES=3
+GEMINI_TEMPERATURE=0.2
+```

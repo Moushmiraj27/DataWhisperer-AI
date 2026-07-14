@@ -38,7 +38,7 @@ def main() -> None:
         render_suggested_questions(dataframe)
 
     with right_column:
-        render_chat_interface()
+        render_chat_interface(dataframe=dataframe, profile=profile, report=eda_report)
         st.write("")
         render_dataset_preview(dataframe)
         st.write("")

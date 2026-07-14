@@ -16,6 +16,7 @@ from frontend.eda import (
     create_missing_value_heatmap,
     generate_eda_report,
 )
+from frontend.gemini_client import request_gemini_response
 from frontend.state import DEFAULT_SUGGESTIONS, add_chat_exchange, consume_queued_question, queue_question
 
 
@@ -255,12 +256,16 @@ def build_suggestions(dataframe: pd.DataFrame | None) -> list[str]:
     ]
 
 
-def render_chat_interface() -> None:
+def render_chat_interface(
+    dataframe: pd.DataFrame | None = None,
+    profile: DatasetProfile | None = None,
+    report: EdaReport | None = None,
+) -> None:
     st.markdown('<div class="dw-panel-title">Chat</div>', unsafe_allow_html=True)
 
     queued_question = consume_queued_question()
     if queued_question:
-        process_prompt(queued_question)
+        process_prompt(queued_question, build_dataset_context(dataframe, profile, report))
 
     chat_container = st.container(height=420)
     with chat_container:
@@ -268,7 +273,7 @@ def render_chat_interface() -> None:
             st.markdown(
                 """
                 <div class="dw-chat-box">
-                    <div class="dw-muted">Start with a suggested question or type your own prompt below.</div>
+                <div class="dw-muted">Start with a suggested question or type your own prompt below.</div>
                     <div class="dw-chip-row">
                         <span class="dw-chip">CSV-aware</span>
                         <span class="dw-chip">Analysis-ready</span>
@@ -285,14 +290,83 @@ def render_chat_interface() -> None:
 
     prompt = st.chat_input("Ask a question about your dataset")
     if prompt:
-        process_prompt(prompt)
+        process_prompt(prompt, build_dataset_context(dataframe, profile, report))
         st.rerun()
 
 
-def process_prompt(prompt: str) -> None:
+def process_prompt(prompt: str, dataset_context: str | None = None) -> None:
     with st.spinner("Preparing response..."):
         time.sleep(0.45)
-        add_chat_exchange(prompt)
+        structured_response = request_gemini_response(prompt, dataset_context=dataset_context)
+        if structured_response:
+            add_chat_exchange(prompt, format_structured_response(structured_response))
+        else:
+            add_chat_exchange(prompt)
+
+
+def format_structured_response(response: dict[str, object]) -> str:
+    lines = [
+        str(response.get("answer", "")),
+        "",
+        f"Summary: {response.get('summary', '')}",
+    ]
+
+    insights = response.get("insights", [])
+    if isinstance(insights, list) and insights:
+        lines.append("")
+        lines.append("Insights:")
+        for insight in insights:
+            if isinstance(insight, dict):
+                lines.append(f"- {insight.get('title', 'Insight')}: {insight.get('detail', '')}")
+
+    suggestions = response.get("suggested_questions", [])
+    if isinstance(suggestions, list) and suggestions:
+        lines.append("")
+        lines.append("Suggested questions:")
+        lines.extend(f"- {suggestion}" for suggestion in suggestions)
+
+    warnings = response.get("warnings", [])
+    if isinstance(warnings, list) and warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        lines.extend(f"- {warning}" for warning in warnings)
+
+    return "\n".join(lines).strip()
+
+
+def build_dataset_context(
+    dataframe: pd.DataFrame | None,
+    profile: DatasetProfile | None,
+    report: EdaReport | None,
+) -> str | None:
+    if dataframe is None or profile is None:
+        return None
+
+    columns = ", ".join(str(column) for column in dataframe.columns[:30])
+    context_lines = [
+        f"Rows: {profile.row_count}",
+        f"Columns: {profile.column_count}",
+        f"Column names: {columns}",
+        f"Missing values: {profile.missing_value_count}",
+        f"Duplicate rows: {profile.duplicate_row_count}",
+        f"Memory usage: {profile.memory_usage_display}",
+        "Column types:",
+        profile.column_types.head(30).to_csv(index=False),
+        "Missing values by column:",
+        profile.missing_values.head(30).to_csv(index=False),
+    ]
+
+    if report is not None:
+        context_lines.extend(
+            [
+                "Outlier summary:",
+                report.outliers.head(20).to_csv(index=False) if not report.outliers.empty else "No numeric outliers found.",
+                "Data quality report:",
+                report.data_quality_report.head(30).to_csv(index=False),
+            ]
+        )
+
+    return "\n".join(context_lines)
 
 
 def get_avatar(role: str) -> Any:

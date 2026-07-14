@@ -27,11 +27,12 @@ def consume_queued_question() -> str | None:
     return question
 
 
-def add_chat_exchange(prompt: str) -> None:
+def add_chat_exchange(prompt: str, response: str | None = None) -> None:
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.session_state.messages.append(
         {
             "role": "assistant",
-            "content": "The analysis engine is not connected yet. This dashboard is ready for the next feature layer.",
+            "content": response
+            or "Gemini is not connected yet. Configure `GEMINI_API_KEY` and start the backend to enable AI responses.",
         }
     )
