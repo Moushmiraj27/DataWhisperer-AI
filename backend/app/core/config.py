@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     gemini_timeout_seconds: float = Field(default=30.0, alias="GEMINI_TIMEOUT_SECONDS")
     gemini_max_retries: int = Field(default=3, alias="GEMINI_MAX_RETRIES")
     gemini_temperature: float = Field(default=0.2, alias="GEMINI_TEMPERATURE")
+    chat_history_path: str = Field(default="data/chat_history.json", alias="CHAT_HISTORY_PATH")
+    chat_memory_limit: int = Field(default=10, alias="CHAT_MEMORY_LIMIT")
 
     @field_validator("backend_cors_origins", mode="before")
     @classmethod

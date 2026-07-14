@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 import streamlit as st
 
 
@@ -12,6 +14,7 @@ DEFAULT_SUGGESTIONS = [
 
 
 def initialize_session_state() -> None:
+    st.session_state.setdefault("conversation_id", f"streamlit-{uuid4()}")
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("recent_chats", ["Sales analysis", "Customer churn review", "CSV quality check"])
     st.session_state.setdefault("suggested_question", None)

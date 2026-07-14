@@ -25,3 +25,4 @@ class GeminiStructuredResponse(BaseModel):
 class GeminiChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     dataset_context: str | None = Field(default=None, max_length=12000)
+    session_id: str = Field(default="default", min_length=1, max_length=120)

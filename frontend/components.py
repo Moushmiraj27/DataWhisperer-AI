@@ -17,6 +17,7 @@ from frontend.eda import (
     generate_eda_report,
 )
 from frontend.gemini_client import request_gemini_response
+from frontend.gemini_client import load_chat_history, reset_chat_history
 from frontend.state import DEFAULT_SUGGESTIONS, add_chat_exchange, consume_queued_question, queue_question
 
 
@@ -28,8 +29,15 @@ def render_sidebar() -> None:
         st.caption("Workspace")
 
         if st.button("New chat", icon=":material/add_comment:", use_container_width=True):
+            reset_chat_history(st.session_state.conversation_id)
             st.session_state.messages = []
             st.rerun()
+
+        if st.button("Reload history", icon=":material/history:", use_container_width=True):
+            history = load_chat_history(st.session_state.conversation_id)
+            if history is not None:
+                st.session_state.messages = history
+                st.rerun()
 
         st.divider()
         render_recent_chats()
@@ -297,7 +305,11 @@ def render_chat_interface(
 def process_prompt(prompt: str, dataset_context: str | None = None) -> None:
     with st.spinner("Preparing response..."):
         time.sleep(0.45)
-        structured_response = request_gemini_response(prompt, dataset_context=dataset_context)
+        structured_response = request_gemini_response(
+            prompt,
+            dataset_context=dataset_context,
+            session_id=st.session_state.conversation_id,
+        )
         if structured_response:
             add_chat_exchange(prompt, format_structured_response(structured_response))
         else:

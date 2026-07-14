@@ -31,6 +31,9 @@ Thumbs.db
 *.log
 logs/
 
+# Runtime data
+data/chat_history*.json
+
 # Streamlit
 .streamlit/secrets.toml
 
