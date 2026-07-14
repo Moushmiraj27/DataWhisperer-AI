@@ -66,6 +66,8 @@ class GeminiService:
                     },
                 )
                 return self._parse_structured_response(interaction)
+            except GeminiConfigurationError:
+                raise
             except GeminiResponseError:
                 raise
             except TimeoutError as error:
