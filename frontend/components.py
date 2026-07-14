@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import os
-import time
 from typing import Any
 
 import pandas as pd
 import streamlit as st
 
-from frontend.csv_upload import CsvValidationError, DatasetProfile, load_csv, profile_dataset
+from frontend.csv_upload import CsvValidationError, DatasetProfile, validate_csv_file
+from frontend.data_cache import (
+    generate_eda_report_cached,
+    generate_suggestions_cached,
+    get_file_fingerprint,
+    load_dataframe_cached,
+    profile_dataset_cached,
+)
 from frontend.eda import (
     EdaReport,
     create_boxplot,
@@ -77,10 +83,12 @@ def render_upload_panel() -> tuple[pd.DataFrame, DatasetProfile, EdaReport] | No
 
     try:
         with st.spinner("Reading CSV..."):
-            time.sleep(0.35)
-            dataframe = load_csv(uploaded_file)
-            profile = profile_dataset(dataframe)
-            eda_report = generate_eda_report(dataframe)
+            validate_csv_file(uploaded_file)
+            content = uploaded_file.getvalue()
+            file_fingerprint = get_file_fingerprint(uploaded_file.name, content)
+            dataframe = load_dataframe_cached(file_fingerprint, content)
+            profile = profile_dataset_cached(file_fingerprint, dataframe)
+            eda_report = generate_eda_report_cached(file_fingerprint, dataframe)
     except CsvValidationError as error:
         st.error(str(error))
         return None
@@ -253,7 +261,12 @@ def render_suggested_questions(dataframe: pd.DataFrame | None) -> None:
 
 
 def build_suggestions(dataframe: pd.DataFrame | None) -> list[str]:
-    return generate_suggested_questions(dataframe)
+    if dataframe is None:
+        return generate_suggested_questions(None)
+    dtype_signature = ",".join(f"{column}:{dtype}" for column, dtype in dataframe.dtypes.items())
+    missing_signature = ",".join(str(column) for column in dataframe.columns[dataframe.isna().any()])
+    fingerprint = f"dataframe:{len(dataframe)}:{dtype_signature}:{missing_signature}"
+    return generate_suggestions_cached(fingerprint, dataframe)
 
 
 def render_chat_interface(
@@ -296,7 +309,6 @@ def render_chat_interface(
 
 def process_prompt(prompt: str, dataset_context: str | None = None) -> None:
     with st.spinner("Preparing response..."):
-        time.sleep(0.45)
         structured_response = request_gemini_response(
             prompt,
             dataset_context=dataset_context,

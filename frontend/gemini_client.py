@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import os
+import asyncio
+from collections.abc import Coroutine
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 import httpx
 import streamlit as st
@@ -15,14 +19,26 @@ def request_gemini_response(
     dataset_context: str | None = None,
     session_id: str = "default",
 ) -> dict[str, object] | None:
-    backend_url = os.getenv("FRONTEND_BACKEND_URL", "http://localhost:8000").rstrip("/")
-
-    try:
-        response = httpx.post(
-            f"{backend_url}/api/v1/chat/gemini",
-            json={"question": question, "dataset_context": dataset_context, "session_id": session_id},
-            timeout=35,
+    return run_async(
+        request_gemini_response_async(
+            question=question,
+            dataset_context=dataset_context,
+            session_id=session_id,
         )
+    )
+
+
+async def request_gemini_response_async(
+    question: str,
+    dataset_context: str | None = None,
+    session_id: str = "default",
+) -> dict[str, object] | None:
+    try:
+        async with httpx.AsyncClient(timeout=35) as client:
+            response = await client.post(
+                f"{get_backend_url()}/api/v1/chat/gemini",
+                json={"question": question, "dataset_context": dataset_context, "session_id": session_id},
+            )
         response.raise_for_status()
         return response.json()
     except httpx.HTTPStatusError as error:
@@ -37,8 +53,13 @@ def request_gemini_response(
 
 
 def load_chat_history(session_id: str) -> list[dict[str, str]] | None:
+    return run_async(load_chat_history_async(session_id))
+
+
+async def load_chat_history_async(session_id: str) -> list[dict[str, str]] | None:
     try:
-        response = httpx.get(f"{get_backend_url()}/api/v1/chat/history/{session_id}", timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(f"{get_backend_url()}/api/v1/chat/history/{session_id}")
         response.raise_for_status()
         messages = response.json().get("messages", [])
         return [{"role": message["role"], "content": message["content"]} for message in messages]
@@ -47,7 +68,22 @@ def load_chat_history(session_id: str) -> list[dict[str, str]] | None:
 
 
 def reset_chat_history(session_id: str) -> None:
+    run_async(reset_chat_history_async(session_id))
+
+
+async def reset_chat_history_async(session_id: str) -> None:
     try:
-        httpx.delete(f"{get_backend_url()}/api/v1/chat/history/{session_id}", timeout=10)
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.delete(f"{get_backend_url()}/api/v1/chat/history/{session_id}")
     except httpx.HTTPError:
         return
+
+
+def run_async(coroutine: Coroutine[Any, Any, Any]) -> Any:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coroutine)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        return executor.submit(asyncio.run, coroutine).result()

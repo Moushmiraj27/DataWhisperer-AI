@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 from fastapi import APIRouter
+from fastapi.concurrency import run_in_threadpool
 
 from backend.app.application.schemas.gemini import GeminiChatRequest, GeminiStructuredResponse
 from backend.app.application.schemas.memory import ChatHistoryResponse, ResetConversationResponse
@@ -29,12 +30,13 @@ async def chat_with_gemini(request: GeminiChatRequest) -> GeminiStructuredRespon
     memory = ConversationMemory(settings.chat_history_path, settings.chat_memory_limit)
 
     try:
-        conversation_context = memory.get_recent_context(request.session_id)
-        response = service.generate_data_chat_response(
-            question=request.question,
-            dataset_context=build_context_with_memory(request.dataset_context, conversation_context),
+        conversation_context = await run_in_threadpool(memory.get_recent_context, request.session_id)
+        response = await run_in_threadpool(
+            service.generate_data_chat_response,
+            request.question,
+            build_context_with_memory(request.dataset_context, conversation_context),
         )
-        memory.append_exchange(request.session_id, request.question, response.answer)
+        await run_in_threadpool(memory.append_exchange, request.session_id, request.question, response.answer)
         return response
     except ConversationMemoryError as error:
         raise ApplicationError(str(error), status_code=HTTPStatus.INTERNAL_SERVER_ERROR) from error
@@ -54,7 +56,8 @@ async def get_chat_history(session_id: str) -> ChatHistoryResponse:
     memory = ConversationMemory(settings.chat_history_path, settings.chat_memory_limit)
 
     try:
-        return ChatHistoryResponse(session_id=session_id, messages=memory.get_messages(session_id))
+        messages = await run_in_threadpool(memory.get_messages, session_id)
+        return ChatHistoryResponse(session_id=session_id, messages=messages)
     except ConversationMemoryError as error:
         raise ApplicationError(str(error), status_code=HTTPStatus.INTERNAL_SERVER_ERROR) from error
 
@@ -65,7 +68,7 @@ async def reset_chat_history(session_id: str) -> ResetConversationResponse:
     memory = ConversationMemory(settings.chat_history_path, settings.chat_memory_limit)
 
     try:
-        memory.reset(session_id)
+        await run_in_threadpool(memory.reset, session_id)
         return ResetConversationResponse(session_id=session_id, reset=True)
     except ConversationMemoryError as error:
         raise ApplicationError(str(error), status_code=HTTPStatus.INTERNAL_SERVER_ERROR) from error
