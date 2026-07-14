@@ -1,24 +1,41 @@
-import os
-
 import streamlit as st
+
+from frontend.components import (
+    render_chat_interface,
+    render_dataset_preview,
+    render_header,
+    render_sidebar,
+    render_suggested_questions,
+    render_upload_panel,
+)
+from frontend.state import initialize_session_state
+from frontend.styles import apply_dark_theme
 
 
 def main() -> None:
-    backend_url = os.getenv("FRONTEND_BACKEND_URL", "http://localhost:8000")
-
     st.set_page_config(
         page_title="DataWhisperer AI",
+        page_icon=":material/query_stats:",
         layout="wide",
+        initial_sidebar_state="expanded",
     )
+    apply_dark_theme()
+    initialize_session_state()
+    render_sidebar()
+    render_header()
 
-    st.title("DataWhisperer AI")
-    st.caption("Frontend shell is ready. Application features are not implemented yet.")
+    st.write("")
+    left_column, right_column = st.columns([1.05, 1.45], gap="large")
 
-    with st.sidebar:
-        st.subheader("Configuration")
-        st.text_input("Backend URL", value=backend_url, disabled=True)
+    with left_column:
+        dataframe = render_upload_panel()
+        st.write("")
+        render_suggested_questions(dataframe)
 
-    st.info("Project boilerplate is set up and ready for feature development.")
+    with right_column:
+        render_chat_interface()
+        st.write("")
+        render_dataset_preview(dataframe)
 
 
 if __name__ == "__main__":
