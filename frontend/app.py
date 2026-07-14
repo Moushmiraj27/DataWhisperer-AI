@@ -2,6 +2,7 @@ import streamlit as st
 
 from frontend.components import (
     render_chat_interface,
+    render_dataset_insights,
     render_dataset_preview,
     render_header,
     render_sidebar,
@@ -28,7 +29,9 @@ def main() -> None:
     left_column, right_column = st.columns([1.05, 1.45], gap="large")
 
     with left_column:
-        dataframe = render_upload_panel()
+        upload_result = render_upload_panel()
+        dataframe = upload_result[0] if upload_result else None
+        profile = upload_result[1] if upload_result else None
         st.write("")
         render_suggested_questions(dataframe)
 
@@ -36,6 +39,8 @@ def main() -> None:
         render_chat_interface()
         st.write("")
         render_dataset_preview(dataframe)
+        st.write("")
+        render_dataset_insights(profile)
 
 
 if __name__ == "__main__":

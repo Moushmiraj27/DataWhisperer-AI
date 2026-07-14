@@ -5,9 +5,9 @@ import time
 from typing import Any
 
 import pandas as pd
-from pandas.errors import EmptyDataError, ParserError
 import streamlit as st
 
+from frontend.csv_upload import CsvValidationError, DatasetProfile, load_csv, profile_dataset
 from frontend.state import DEFAULT_SUGGESTIONS, add_chat_exchange, consume_queued_question, queue_question
 
 
@@ -49,7 +49,7 @@ def render_header() -> None:
     )
 
 
-def render_upload_panel() -> pd.DataFrame | None:
+def render_upload_panel() -> tuple[pd.DataFrame, DatasetProfile] | None:
     st.markdown('<div class="dw-panel-title">Dataset</div>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("Upload CSV", type=["csv"], label_visibility="collapsed")
 
@@ -60,13 +60,15 @@ def render_upload_panel() -> pd.DataFrame | None:
     try:
         with st.spinner("Reading CSV..."):
             time.sleep(0.35)
-            dataframe = pd.read_csv(uploaded_file)
-    except (EmptyDataError, ParserError, UnicodeDecodeError) as error:
-        st.error(f"Unable to read this CSV file: {error}")
+            dataframe = load_csv(uploaded_file)
+            profile = profile_dataset(dataframe)
+    except CsvValidationError as error:
+        st.error(str(error))
         return None
 
-    render_dataset_metrics(dataframe)
-    return dataframe
+    st.success(f"Loaded `{uploaded_file.name}` successfully.")
+    render_dataset_metrics(profile)
+    return dataframe, profile
 
 
 def render_empty_dataset_state() -> None:
@@ -81,22 +83,29 @@ def render_empty_dataset_state() -> None:
     )
 
 
-def render_dataset_metrics(dataframe: pd.DataFrame) -> None:
-    missing_values = int(dataframe.isna().sum().sum())
+def render_dataset_metrics(profile: DatasetProfile) -> None:
     st.markdown(
         f"""
         <div class="dw-metric-grid">
             <div class="dw-metric">
                 <div class="dw-metric-label">Rows</div>
-                <div class="dw-metric-value">{len(dataframe):,}</div>
+                <div class="dw-metric-value">{profile.row_count:,}</div>
             </div>
             <div class="dw-metric">
                 <div class="dw-metric-label">Columns</div>
-                <div class="dw-metric-value">{len(dataframe.columns):,}</div>
+                <div class="dw-metric-value">{profile.column_count:,}</div>
             </div>
             <div class="dw-metric">
                 <div class="dw-metric-label">Missing</div>
-                <div class="dw-metric-value">{missing_values:,}</div>
+                <div class="dw-metric-value">{profile.missing_value_count:,}</div>
+            </div>
+            <div class="dw-metric">
+                <div class="dw-metric-label">Duplicates</div>
+                <div class="dw-metric-value">{profile.duplicate_row_count:,}</div>
+            </div>
+            <div class="dw-metric">
+                <div class="dw-metric-label">Memory</div>
+                <div class="dw-metric-value">{profile.memory_usage_display}</div>
             </div>
         </div>
         """,
@@ -113,6 +122,48 @@ def render_dataset_preview(dataframe: pd.DataFrame | None) -> None:
 
     preview_rows = st.slider("Preview rows", min_value=5, max_value=50, value=10, step=5)
     st.dataframe(dataframe.head(preview_rows), use_container_width=True, hide_index=True)
+
+
+def render_dataset_insights(profile: DatasetProfile | None) -> None:
+    st.markdown('<div class="dw-panel-title">Dataset Statistics</div>', unsafe_allow_html=True)
+
+    if profile is None:
+        st.info("Upload a CSV file to view statistics, missing values, duplicates, column types, and memory usage.")
+        return
+
+    overview_tab, missing_tab, types_tab, statistics_tab = st.tabs(
+        ["Overview", "Missing Values", "Column Types", "Statistics"]
+    )
+
+    with overview_tab:
+        st.markdown(
+            f"""
+            <div class="dw-metric-grid">
+                <div class="dw-metric">
+                    <div class="dw-metric-label">Total Cells</div>
+                    <div class="dw-metric-value">{profile.row_count * profile.column_count:,}</div>
+                </div>
+                <div class="dw-metric">
+                    <div class="dw-metric-label">Duplicate Rows</div>
+                    <div class="dw-metric-value">{profile.duplicate_row_count:,}</div>
+                </div>
+                <div class="dw-metric">
+                    <div class="dw-metric-label">Memory Usage</div>
+                    <div class="dw-metric-value">{profile.memory_usage_display}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with missing_tab:
+        st.dataframe(profile.missing_values, use_container_width=True, hide_index=True)
+
+    with types_tab:
+        st.dataframe(profile.column_types, use_container_width=True, hide_index=True)
+
+    with statistics_tab:
+        st.dataframe(profile.statistics, use_container_width=True, hide_index=True)
 
 
 def render_suggested_questions(dataframe: pd.DataFrame | None) -> None:
