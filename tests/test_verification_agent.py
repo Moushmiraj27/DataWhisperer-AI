@@ -86,3 +86,32 @@ def test_verification_agent_retries_invalid_chart_output() -> None:
     assert response.verified is True
     assert response.verified_visualization_output is not None
     assert response.verified_visualization_output.figure["data"]
+
+
+def test_verification_agent_fails_when_required_columns_are_missing() -> None:
+    response = VerificationAgent().verify(
+        VerificationRequest(
+            records=RECORDS,
+            expected_columns=["region", "sales", "profit", "margin"],
+            required_columns=["margin"],
+        )
+    )
+
+    assert response.verified is False
+    assert any(check.name == "column_names" and check.status == VerificationStatus.FAILED for check in response.checks)
+    assert any(check.name == "required_columns" and check.status == VerificationStatus.FAILED for check in response.checks)
+
+
+def test_verification_agent_fails_invalid_chart_without_retry() -> None:
+    invalid_output = VisualizationResponse(chart_type=ChartType.BAR, figure={"data": []}, reasoning="bad")
+
+    response = VerificationAgent().verify(
+        VerificationRequest(
+            records=RECORDS,
+            visualization_output=invalid_output,
+            retry_failed_operations=False,
+        )
+    )
+
+    assert response.verified is False
+    assert any(check.name == "chart_validity" and check.status == VerificationStatus.FAILED for check in response.checks)

@@ -77,3 +77,45 @@ def test_analysis_agent_rejects_unknown_columns() -> None:
 
     with pytest.raises(AnalysisAgentError, match="Unknown column"):
         AnalysisAgent().execute(request)
+
+
+def test_analysis_agent_applies_null_and_membership_filters() -> None:
+    request = AnalysisRequest(
+        records=RECORDS,
+        filters=[
+            FilterCondition(column="region", operator=FilterOperator.IN, value=["East", "West"]),
+            FilterCondition(column="profit", operator=FilterOperator.NOT_NULL, value=None),
+        ],
+        preview_rows=10,
+    )
+
+    response = AnalysisAgent().execute(request)
+
+    assert response.filtered_row_count == 3
+    assert all(row["profit"] is not None for row in response.preview)
+
+
+def test_analysis_agent_supports_global_aggregation_without_grouping() -> None:
+    request = AnalysisRequest(
+        records=RECORDS,
+        aggregation=AggregationSpec(
+            group_by=[],
+            metrics=[
+                AggregationMetric(column="sales", function=AggregationFunction.MAX, alias="max_sales"),
+                AggregationMetric(column="profit", function=AggregationFunction.COUNT, alias="known_profit_rows"),
+            ],
+        ),
+    )
+
+    response = AnalysisAgent().execute(request)
+
+    assert response.aggregation == [{"max_sales": 200, "known_profit_rows": 3}]
+
+
+def test_analysis_agent_warns_when_statistics_columns_are_not_numeric() -> None:
+    request = AnalysisRequest(records=RECORDS, statistics_columns=["region", "sales"])
+
+    response = AnalysisAgent().execute(request)
+
+    assert {row["column"] for row in response.statistics} == {"sales"}
+    assert response.warnings == ["Skipped non-numeric statistics columns: region"]

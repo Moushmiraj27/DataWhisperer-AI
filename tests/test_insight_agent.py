@@ -1,3 +1,5 @@
+import pytest
+
 from backend.app.application.agents.insight_agent import InsightAgent, serialize_analysis_results
 from backend.app.application.schemas.insight import (
     Anomaly,
@@ -57,6 +59,11 @@ class FakeGeminiService:
         )
 
 
+class FailingGeminiService:
+    def generate_structured_response(self, system_instruction, prompt, response_model):
+        raise RuntimeError("Gemini unavailable")
+
+
 def test_insight_agent_generates_structured_response() -> None:
     gemini_service = FakeGeminiService()
     request = InsightRequest(
@@ -79,3 +86,14 @@ def test_insight_agent_generates_structured_response() -> None:
 def test_serialize_analysis_results_handles_strings_and_json() -> None:
     assert serialize_analysis_results("already summarized") == "already summarized"
     assert '"value": 42' in serialize_analysis_results({"value": 42})
+
+
+def test_serialize_analysis_results_returns_none_for_missing_results() -> None:
+    assert serialize_analysis_results(None) is None
+
+
+def test_insight_agent_surfaces_gemini_failures() -> None:
+    request = InsightRequest(objective="Explain performance")
+
+    with pytest.raises(RuntimeError, match="Gemini unavailable"):
+        InsightAgent(gemini_service=FailingGeminiService()).generate(request)

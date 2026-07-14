@@ -1,4 +1,4 @@
-from backend.app.application.agents.planner_agent import PlannerAgent, score_intents
+from backend.app.application.agents.planner_agent import PlannerAgent, build_step, score_intents
 from backend.app.application.schemas.planner import PlannerIntent
 
 
@@ -27,3 +27,24 @@ def test_planner_agent_defaults_to_statistics_for_ambiguous_request() -> None:
 
     assert response.primary_intent == PlannerIntent.STATISTICS
     assert response.clarification_questions == ["Which uploaded dataset should this plan use?"]
+
+
+def test_planner_agent_classifies_all_supported_categories() -> None:
+    request = (
+        "Show statistics, visualize a chart, filter rows, group by category, "
+        "clean missing values, recommend next actions, and generate a PDF report."
+    )
+
+    response = PlannerAgent().plan(request, dataset_context="Rows: 10, Columns: category, sales")
+
+    assert set(response.intents) == set(PlannerIntent)
+    assert response.requires_dataset is True
+    assert [step.order for step in response.execution_plan] == list(range(1, len(response.execution_plan) + 1))
+
+
+def test_build_step_uses_template_metadata() -> None:
+    step = build_step(order=1, intent=PlannerIntent.AGGREGATION)
+
+    assert step.action == "Aggregate data"
+    assert step.intent == PlannerIntent.AGGREGATION
+    assert "grouping columns" in step.inputs_required

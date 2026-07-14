@@ -35,6 +35,25 @@ def test_visualization_agent_returns_histogram() -> None:
     assert response.figure["data"][0]["type"] == "histogram"
 
 
+def test_visualization_agent_returns_line_chart() -> None:
+    response = VisualizationAgent().execute(
+        VisualizationRequest(records=RECORDS, chart_type=ChartType.LINE, x="month", y="sales")
+    )
+
+    assert response.chart_type == ChartType.LINE
+    assert response.figure["data"][0]["type"] == "scatter"
+    assert response.figure["data"][0]["mode"] == "lines"
+
+
+def test_visualization_agent_returns_pie_chart() -> None:
+    response = VisualizationAgent().execute(
+        VisualizationRequest(records=RECORDS, chart_type=ChartType.PIE, x="region", y="sales")
+    )
+
+    assert response.chart_type == ChartType.PIE
+    assert response.figure["data"][0]["type"] == "pie"
+
+
 def test_visualization_agent_returns_heatmap() -> None:
     response = VisualizationAgent().execute(
         VisualizationRequest(records=RECORDS, chart_type=ChartType.HEATMAP)
@@ -56,4 +75,11 @@ def test_visualization_agent_rejects_unknown_columns() -> None:
     with pytest.raises(VisualizationAgentError, match="Unknown column"):
         VisualizationAgent().execute(
             VisualizationRequest(records=RECORDS, chart_type=ChartType.LINE, x="missing", y="sales")
+        )
+
+
+def test_visualization_agent_rejects_heatmap_without_numeric_columns() -> None:
+    with pytest.raises(VisualizationAgentError, match="Heatmap requires"):
+        VisualizationAgent().execute(
+            VisualizationRequest(records=[{"region": "West", "category": "A"}], chart_type=ChartType.HEATMAP)
         )

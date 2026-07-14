@@ -13,6 +13,7 @@ from backend.app.infrastructure.providers.gemini_service import (
     GeminiResponseError,
     GeminiService,
     GeminiServiceError,
+    GeminiTimeoutError,
 )
 
 
@@ -78,6 +79,14 @@ def test_gemini_service_raises_for_invalid_structured_response() -> None:
         service.generate_data_chat_response("Question")
 
 
+def test_gemini_service_raises_for_empty_response() -> None:
+    interactions = FakeInteractions(output_text="")
+    service = GeminiService(settings=make_settings(), client=SimpleNamespace(interactions=interactions), sleep=lambda _: None)
+
+    with pytest.raises(GeminiResponseError):
+        service.generate_data_chat_response("Question")
+
+
 def test_gemini_service_raises_configuration_error_without_key() -> None:
     service = GeminiService(settings=make_settings(GEMINI_API_KEY=None))
 
@@ -91,6 +100,24 @@ def test_gemini_service_raises_after_retry_exhaustion() -> None:
 
     with pytest.raises(GeminiServiceError):
         service.generate_data_chat_response("Question")
+
+
+def test_gemini_service_raises_timeout_after_retries() -> None:
+    class TimeoutInteractions:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def create(self, **_: object) -> SimpleNamespace:
+            self.calls += 1
+            raise TimeoutError("slow request")
+
+    interactions = TimeoutInteractions()
+    service = GeminiService(settings=make_settings(), client=SimpleNamespace(interactions=interactions), sleep=lambda _: None)
+
+    with pytest.raises(GeminiTimeoutError):
+        service.generate_data_chat_response("Question")
+
+    assert interactions.calls == 2
 
 
 def test_prompt_template_includes_question_and_context() -> None:
