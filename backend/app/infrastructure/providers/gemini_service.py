@@ -3,15 +3,16 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from backend.app.application.prompts.gemini import DATA_CHAT_SYSTEM_PROMPT, build_data_chat_prompt
 from backend.app.application.schemas.gemini import GeminiStructuredResponse
 from backend.app.core.config import Settings
 
 logger = logging.getLogger(__name__)
+StructuredResponseT = TypeVar("StructuredResponseT", bound=BaseModel)
 
 
 class GeminiServiceError(RuntimeError):
@@ -47,14 +48,26 @@ class GeminiService:
         dataset_context: str | None = None,
     ) -> GeminiStructuredResponse:
         prompt = build_data_chat_prompt(question=question, dataset_context=dataset_context)
-        response_schema = GeminiStructuredResponse.model_json_schema()
+        return self.generate_structured_response(
+            system_instruction=DATA_CHAT_SYSTEM_PROMPT,
+            prompt=prompt,
+            response_model=GeminiStructuredResponse,
+        )
+
+    def generate_structured_response(
+        self,
+        system_instruction: str,
+        prompt: str,
+        response_model: type[StructuredResponseT],
+    ) -> StructuredResponseT:
+        response_schema = response_model.model_json_schema()
         last_error: Exception | None = None
 
         for attempt in range(1, self._settings.gemini_max_retries + 1):
             try:
                 interaction = self._get_client().interactions.create(
                     model=self._settings.gemini_model,
-                    system_instruction=DATA_CHAT_SYSTEM_PROMPT,
+                    system_instruction=system_instruction,
                     input=prompt,
                     response_format={
                         "type": "text",
@@ -65,7 +78,7 @@ class GeminiService:
                         "temperature": self._settings.gemini_temperature,
                     },
                 )
-                return self._parse_structured_response(interaction)
+                return self._parse_structured_response(interaction, response_model)
             except GeminiConfigurationError:
                 raise
             except GeminiResponseError:
@@ -116,12 +129,15 @@ class GeminiService:
         )
 
     @staticmethod
-    def _parse_structured_response(interaction: Any) -> GeminiStructuredResponse:
+    def _parse_structured_response(
+        interaction: Any,
+        response_model: type[StructuredResponseT],
+    ) -> StructuredResponseT:
         output_text = getattr(interaction, "output_text", None)
         if not output_text:
             raise GeminiResponseError("Gemini returned an empty response.")
 
         try:
-            return GeminiStructuredResponse.model_validate_json(output_text)
+            return response_model.model_validate_json(output_text)
         except ValidationError as error:
             raise GeminiResponseError("Gemini returned an invalid structured response.") from error
