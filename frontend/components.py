@@ -20,10 +20,8 @@ from frontend.eda import (
     create_correlation_heatmap,
     create_histogram,
     create_missing_value_heatmap,
-    generate_eda_report,
 )
-from frontend.gemini_client import request_gemini_response
-from frontend.gemini_client import load_chat_history, reset_chat_history
+from frontend.gemini_client import load_chat_history, request_gemini_response, reset_chat_history
 from frontend.state import add_chat_exchange, consume_queued_question, queue_question
 from frontend.suggestions import generate_suggested_questions
 

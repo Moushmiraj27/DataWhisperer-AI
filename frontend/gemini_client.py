@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import asyncio
+import os
 from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -42,7 +42,7 @@ async def request_gemini_response_async(
         response.raise_for_status()
         return response.json()
     except httpx.HTTPStatusError as error:
-        detail = error.response.json().get("detail", "Gemini request failed.")
+        detail = extract_error_detail(error.response)
         st.warning(detail)
     except httpx.TimeoutException:
         st.warning("Gemini request timed out.")
@@ -50,6 +50,16 @@ async def request_gemini_response_async(
         st.warning("Backend is not reachable. Start the FastAPI server to use Gemini chat.")
 
     return None
+
+
+def extract_error_detail(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return "Gemini request failed."
+
+    detail = payload.get("detail") if isinstance(payload, dict) else None
+    return str(detail) if detail else "Gemini request failed."
 
 
 def load_chat_history(session_id: str) -> list[dict[str, str]] | None:

@@ -1,7 +1,10 @@
 from http import HTTPStatus
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 class ApplicationError(Exception):
@@ -13,14 +16,21 @@ class ApplicationError(Exception):
         super().__init__(message)
 
 
-async def application_error_handler(_: Request, exc: ApplicationError) -> JSONResponse:
+async def application_error_handler(request: Request, exc: ApplicationError) -> JSONResponse:
+    logger.warning(
+        "Application error on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc.message,
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.message},
     )
 
 
-async def unhandled_error_handler(_: Request, __: Exception) -> JSONResponse:
+async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"},

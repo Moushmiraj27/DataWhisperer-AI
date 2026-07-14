@@ -7,15 +7,14 @@ from backend.app.application.schemas.gemini import GeminiChatRequest, GeminiStru
 from backend.app.application.schemas.memory import ChatHistoryResponse, ResetConversationResponse
 from backend.app.core.config import get_settings
 from backend.app.core.exceptions import ApplicationError
+from backend.app.interfaces.api.dependencies import get_conversation_memory, get_gemini_service
 from backend.app.infrastructure.persistence.conversation_memory import (
-    ConversationMemory,
     ConversationMemoryError,
     build_context_with_memory,
 )
 from backend.app.infrastructure.providers.gemini_service import (
     GeminiConfigurationError,
     GeminiResponseError,
-    GeminiService,
     GeminiServiceError,
     GeminiTimeoutError,
 )
@@ -26,8 +25,8 @@ router = APIRouter(prefix="/chat")
 @router.post("/gemini", response_model=GeminiStructuredResponse, summary="Chat with Gemini")
 async def chat_with_gemini(request: GeminiChatRequest) -> GeminiStructuredResponse:
     settings = get_settings()
-    service = GeminiService(settings)
-    memory = ConversationMemory(settings.chat_history_path, settings.chat_memory_limit)
+    service = get_gemini_service(settings)
+    memory = get_conversation_memory(settings)
 
     try:
         conversation_context = await run_in_threadpool(memory.get_recent_context, request.session_id)
@@ -53,7 +52,7 @@ async def chat_with_gemini(request: GeminiChatRequest) -> GeminiStructuredRespon
 @router.get("/history/{session_id}", response_model=ChatHistoryResponse, summary="Get persistent chat history")
 async def get_chat_history(session_id: str) -> ChatHistoryResponse:
     settings = get_settings()
-    memory = ConversationMemory(settings.chat_history_path, settings.chat_memory_limit)
+    memory = get_conversation_memory(settings)
 
     try:
         messages = await run_in_threadpool(memory.get_messages, session_id)
@@ -65,7 +64,7 @@ async def get_chat_history(session_id: str) -> ChatHistoryResponse:
 @router.delete("/history/{session_id}", response_model=ResetConversationResponse, summary="Reset conversation")
 async def reset_chat_history(session_id: str) -> ResetConversationResponse:
     settings = get_settings()
-    memory = ConversationMemory(settings.chat_history_path, settings.chat_memory_limit)
+    memory = get_conversation_memory(settings)
 
     try:
         await run_in_threadpool(memory.reset, session_id)
