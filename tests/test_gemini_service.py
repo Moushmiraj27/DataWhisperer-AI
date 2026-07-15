@@ -33,7 +33,7 @@ class FakeInteractions:
 def make_settings(**overrides: object) -> Settings:
     values = {
         "GEMINI_API_KEY": "test-key",
-        "GEMINI_MODEL": "gemini-3.5-flash",
+        "GEMINI_MODEL": "gemini-flash-lite-latest",
         "GEMINI_TIMEOUT_SECONDS": 1,
         "GEMINI_MAX_RETRIES": 2,
         "GEMINI_TEMPERATURE": 0.2,

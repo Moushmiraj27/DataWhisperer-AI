@@ -1,7 +1,8 @@
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, alias="API_PORT")
     api_prefix: str = Field(default="/api/v1", alias="API_PREFIX")
 
-    backend_cors_origins: list[str] = Field(
+    backend_cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:8501", "http://127.0.0.1:8501"],
         alias="BACKEND_CORS_ORIGINS",
     )
@@ -22,7 +23,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-3.5-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-flash-lite-latest", alias="GEMINI_MODEL")
     gemini_timeout_seconds: float = Field(default=30.0, alias="GEMINI_TIMEOUT_SECONDS")
     gemini_max_retries: int = Field(default=3, alias="GEMINI_MAX_RETRIES")
     gemini_temperature: float = Field(default=0.2, alias="GEMINI_TEMPERATURE")

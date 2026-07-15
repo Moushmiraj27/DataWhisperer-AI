@@ -27,7 +27,6 @@ def add_chat_exchange(prompt: str, response: str | None = None) -> None:
     st.session_state.messages.append(
         {
             "role": "assistant",
-            "content": response
-            or "Gemini is not connected yet. Configure `GEMINI_API_KEY` and start the backend to enable AI responses.",
+            "content": response or "I could not generate a response. Check the backend terminal for details.",
         }
     )

@@ -44,10 +44,15 @@ async def request_gemini_response_async(
     except httpx.HTTPStatusError as error:
         detail = extract_error_detail(error.response)
         st.warning(detail)
+        return build_error_response(detail)
     except httpx.TimeoutException:
-        st.warning("Gemini request timed out.")
+        detail = "Gemini request timed out. Check your internet connection, then try again."
+        st.warning(detail)
+        return build_error_response(detail)
     except httpx.HTTPError:
-        st.warning("Backend is not reachable. Start the FastAPI server to use Gemini chat.")
+        detail = "Backend is not reachable. Start the FastAPI server, then try again."
+        st.warning(detail)
+        return build_error_response(detail)
 
     return None
 
@@ -60,6 +65,17 @@ def extract_error_detail(response: httpx.Response) -> str:
 
     detail = payload.get("detail") if isinstance(payload, dict) else None
     return str(detail) if detail else "Gemini request failed."
+
+
+def build_error_response(detail: str) -> dict[str, object]:
+    return {
+        "answer": detail,
+        "summary": "The AI response could not be generated.",
+        "insights": [],
+        "suggested_questions": [],
+        "chart_recommendations": [],
+        "warnings": [detail],
+    }
 
 
 def load_chat_history(session_id: str) -> list[dict[str, str]] | None:

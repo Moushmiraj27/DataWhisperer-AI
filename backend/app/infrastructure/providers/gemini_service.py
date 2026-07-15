@@ -13,6 +13,7 @@ from backend.app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 StructuredResponseT = TypeVar("StructuredResponseT", bound=BaseModel)
+MAX_ERROR_DETAIL_LENGTH = 280
 
 
 class GeminiServiceError(RuntimeError):
@@ -65,20 +66,12 @@ class GeminiService:
 
         for attempt in range(1, self._settings.gemini_max_retries + 1):
             try:
-                interaction = self._get_client().interactions.create(
-                    model=self._settings.gemini_model,
+                response = self._generate_content(
                     system_instruction=system_instruction,
-                    input=prompt,
-                    response_format={
-                        "type": "text",
-                        "mime_type": "application/json",
-                        "schema": response_schema,
-                    },
-                    generation_config={
-                        "temperature": self._settings.gemini_temperature,
-                    },
+                    prompt=prompt,
+                    response_schema=response_schema,
                 )
-                return self._parse_structured_response(interaction, response_model)
+                return self._parse_structured_response(response, response_model)
             except GeminiConfigurationError:
                 raise
             except GeminiResponseError:
@@ -94,9 +87,10 @@ class GeminiService:
                 self._sleep(min(2 ** (attempt - 1), 8))
 
         if isinstance(last_error, TimeoutError):
-            raise GeminiTimeoutError("Gemini request timed out.") from last_error
+            raise GeminiTimeoutError("Gemini request timed out. Check your internet connection and try again.") from last_error
 
-        raise GeminiServiceError("Gemini request failed after retries.") from last_error
+        detail = format_provider_error(last_error)
+        raise GeminiServiceError(f"Gemini request failed after retries. {detail}") from last_error
 
     def _get_client(self) -> Any:
         if self._client is None:
@@ -115,7 +109,7 @@ class GeminiService:
 
         timeout_ms = int(self._settings.gemini_timeout_seconds * 1000)
         retry_options = types.HttpRetryOptions(
-            attempts=self._settings.gemini_max_retries,
+            attempts=1,
             initial_delay=1,
             max_delay=8,
             exp_base=2,
@@ -128,12 +122,47 @@ class GeminiService:
             http_options=types.HttpOptions(timeout=timeout_ms, retry_options=retry_options),
         )
 
+    def _generate_content(
+        self,
+        system_instruction: str,
+        prompt: str,
+        response_schema: dict[str, Any],
+    ) -> Any:
+        client = self._get_client()
+
+        if hasattr(client, "models"):
+            return client.models.generate_content(
+                model=self._settings.gemini_model,
+                contents=prompt,
+                config={
+                    "system_instruction": system_instruction,
+                    "temperature": self._settings.gemini_temperature,
+                    "response_mime_type": "application/json",
+                    "response_schema": response_schema,
+                    "http_options": {"timeout": int(self._settings.gemini_timeout_seconds * 1000)},
+                },
+            )
+
+        return client.interactions.create(
+            model=self._settings.gemini_model,
+            system_instruction=system_instruction,
+            input=prompt,
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": response_schema,
+            },
+            generation_config={
+                "temperature": self._settings.gemini_temperature,
+            },
+        )
+
     @staticmethod
     def _parse_structured_response(
-        interaction: Any,
+        response: Any,
         response_model: type[StructuredResponseT],
     ) -> StructuredResponseT:
-        output_text = getattr(interaction, "output_text", None)
+        output_text = getattr(response, "output_text", None) or getattr(response, "text", None)
         if not output_text:
             raise GeminiResponseError("Gemini returned an empty response.")
 
@@ -141,3 +170,16 @@ class GeminiService:
             return response_model.model_validate_json(output_text)
         except ValidationError as error:
             raise GeminiResponseError("Gemini returned an invalid structured response.") from error
+
+
+def format_provider_error(error: Exception | None) -> str:
+    if error is None:
+        return "No provider details were returned."
+
+    message = str(error).replace("\n", " ").strip()
+    if not message:
+        return "No provider details were returned."
+
+    if len(message) > MAX_ERROR_DETAIL_LENGTH:
+        message = f"{message[:MAX_ERROR_DETAIL_LENGTH].rstrip()}..."
+    return message
